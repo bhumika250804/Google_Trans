@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Django Text → Voice (with Translate)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --text: #111827;
+      --card: #ffffff;
+      --primary: #6366f1;
+      --secondary: #a855f7;
+      --border: #d1d5db;
+      --error: #dc2626;
+    }
+
+    body.dark {
+      --bg: #111827;
+      --text: #f3f4f6;
+      --card: #1f2937;
+      --border: #374151;
+    }
+
+    /* General page styling */
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      margin: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .container {
+      background: var(--card);
+      width: 100%;
+      max-width: 760px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      animation: fadeIn 0.6s ease-in-out;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    h2 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 1.8rem;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    label {
+      font-weight: 600;
+      margin-top: 12px;
+      display: inline-block;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-top: 6px;
+      font-size: 15px;
+      resize: vertical;
+      background: var(--card);
+      color: var(--text);
+      transition: border-color 0.3s, background 0.3s, color 0.3s;
+    }
+    textarea:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+    }
+
+    select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+      margin-top: 6px;
+      background: var(--card);
+      color: var(--text);
+      transition: border-color 0.3s, background 0.3s, color 0.3s;
+    }
+    select:focus {
+      border-color: var(--secondary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(168,85,247,0.2);
+    }
+
+    .row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button {
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      color: #fff;
+      font-weight: bold;
+      font-size: 15px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+    }
+
+    .error {
+      color: var(--error);
+      margin-top: 10px;
+      font-weight: 500;
+    }
+
+    .box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--bg);
+      white-space: pre-wrap;
+      font-size: 15px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .section {
+      margin-top: 20px;
+    }
+
+    audio {
+      margin-top: 10px;
+    }
+
+    a.download {
+      display: inline-block;
+      margin-top: 10px;
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    a.download:hover {
+      background: #4f46e5;
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from {opacity:0; transform: translateY(10px);}
+      to {opacity:1; transform: translateY(0);}
+    }
+  </style>
+</head>
+<body>
+  <div class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">🌙</div>
+
+  <div class="container">
+    <h2>🌐 Text → Voice (Auto-Translate + gTTS)</h2>
+
+    <form method="POST" action="/convert/">
+      {% csrf_token %}
+      <label for="text">Enter text</label>
+      <textarea id="text" name="text" placeholder="Type or paste your text here...">{{ entered_text|default:'' }}</textarea>
+
+      <div class="row">
+        <div>
+          <label for="lang">Speak in</label><br>
+          <select id="lang" name="lang">
+            <option value="en" {% if selected_lang == 'en' %}selected{% endif %}>English (en)</option>
+            <option value="mr" {% if selected_lang == 'mr' %}selected{% endif %}>Marathi (mr)</option>
+            <option value="hi" {% if selected_lang == 'hi' %}selected{% endif %}>Hindi (hi)</option>
+            <option value="ta" {% if selected_lang == 'ta' %}selected{% endif %}>Tamil (ta)</option>
+            <option value="te" {% if selected_lang == 'te' %}selected{% endif %}>Telugu (te)</option>
+            <option value="gu" {% if selected_lang == 'gu' %}selected{% endif %}>Gujarati (gu)</option>
+            <option value="bn" {% if selected_lang == 'bn' %}selected{% endif %}>Bengali (bn)</option>
+            <option value="pa" {% if selected_lang == 'pa' %}selected{% endif %}>Punjabi (pa)</option>
+            <option value="ur" {% if selected_lang == 'ur' %}selected{% endif %}>Urdu (ur)</option>
+          </select>
+        </div>
+
+        <label class="checkbox">
+          <input type="checkbox" name="translate_first" {% if translate_first %}checked{% endif %}>
+          Translate before speaking
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" name="slow" {% if slow %}checked{% endif %}>
+          Slow voice
+        </label>
+
+        <div style="margin-left:auto">
+          <button type="submit">🎧 Convert & Download</button>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+    </form>
+
+    {% if translated_text %}
+      <div class="section">
+        <strong>Translated text preview:</strong>
+        <div class="box">{{ translated_text }}</div>
+      </div>
+    {% endif %}
+
+    {% if translation_error %}
+      <div class="error">{{ translation_error }}</div>
+    {% endif %}
+
+    {% if audio_file %}
+      <div class="section">
+        <strong>Generated Audio:</strong><br>
+        <audio controls>
+          <source src="{{ audio_file }}" type="audio/mpeg">
+        </audio><br>
+        <a href="{{ audio_file }}" download class="download">⬇ Download MP3</a>
+      </div>
+    {% endif %}
+
+    <p class="section" style="font-size:13px; color:gray; text-align:center;">
+      ⚠ Internet is required for both translation and gTTS.
+    </p>
+  </div>
+
+  <script>
+    const toggleBtn = document.getElementById("themeToggle");
+    toggleBtn.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      toggleBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+    });
+  </script>
+</body>
+</html>
